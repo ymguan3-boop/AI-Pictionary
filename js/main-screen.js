@@ -1,4 +1,4 @@
-(function() {
+(function () {
   'use strict';
 
   const GEMINI_API = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
@@ -17,11 +17,15 @@
     apiStatus: document.querySelector('#apiStatus')
   };
 
-  let peer = null;
+  const ABLY_KEY = 'XGHDcg.6rIvFg:As3RE8ShoT67QAg1O2GoyRSN50RosUlk5Yfwo4eJkBc';
+  const channelName = function (room) { return 'pictionary-' + room; };
+
+  let ably = null;
+  let channel = null;
   let roomId = '';
-  let playerCount = 0;
   let drawingId = 0;
-  let peerRetries = 0;
+  let memberCount = 0;
+  let myClientId = 'host-' + Math.random().toString(36).substring(2, 8);
 
   function getApiKey() {
     return localStorage.getItem('gemini_api_key') || '';
@@ -39,7 +43,7 @@
     elements.roomDisplay.textContent = roomId;
     generateQR();
 
-    setupPeer();
+    setupAbly();
     setupEvents();
   }
 
@@ -62,62 +66,75 @@
     }
   }
 
-  function setupPeer() {
-    if (peer) {
-      peer.destroy();
-      peer = null;
-    }
-
-    try {
-      peer = new Peer(roomId);
-    } catch (err) {
-      setStatus('offline', '連線模組載入失敗');
-      console.error('[peer] init error:', err);
+  function setupAbly() {
+    if (!ABLY_KEY || ABLY_KEY.indexOf('PASTE_') === 0) {
+      setStatus('offline', '⚠️ Ably API Key 未設定');
+      console.error('[ably] API key not configured');
       return;
     }
 
-    peer.on('open', function(id) {
-      peerRetries = 0;
+    try {
+      ably = new Ably.Realtime({
+        key: ABLY_KEY,
+        clientId: myClientId,
+        transportParams: { maxMessageSize: 500000 }
+      });
+    } catch (err) {
+      setStatus('offline', '連線模組載入失敗');
+      console.error('[ably] init error:', err);
+      return;
+    }
+
+    ably.connection.on('connected', function () {
       setStatus('ready', '等待玩家加入');
-      console.log('[peer] ready:', id);
+      console.log('[ably] connected');
     });
 
-    peer.on('connection', function(conn) {
-      playerCount++;
-      updatePlayerList();
-      setStatus('online', playerCount + ' 位玩家連線中');
+    ably.connection.on('failed', function (err) {
+      setStatus('offline', '連線失敗');
+      console.error('[ably] connection failed:', err);
+    });
 
-      conn.on('data', function(data) {
-        try {
-          const msg = typeof data === 'string' ? JSON.parse(data) : data;
-          if (msg.type === 'drawing') {
-            handleDrawing(conn, msg);
-            try { conn.send(JSON.stringify({ type: 'ack' })); } catch (_) {}
-          }
-        } catch (err) {
-          console.error('[data] parse error:', err);
-        }
-      });
+    ably.connection.on('closed', function () {
+      setStatus('offline', '連線已中斷');
+    });
 
-      conn.on('close', function() {
-        playerCount = Math.max(0, playerCount - 1);
+    channel = ably.channels.get(channelName(roomId));
+    channel.subscribe('drawing', function (message) {
+      handleDrawing(message);
+      try {
+        channel.publish('ack', { id: message.id });
+      } catch (_) { }
+    });
+
+    channel.presence.enter('host');
+    channel.presence.subscribe('enter', function () {
+      updatePresence();
+    });
+    channel.presence.subscribe('leave', function () {
+      updatePresence();
+    });
+
+    channel.presence.get().then(function (members) {
+      memberCount = members.filter(function (m) { return m.clientId !== myClientId; }).length;
+      updatePresence();
+    }).catch(function () { });
+  }
+
+  function updatePresence() {
+    if (!channel) return;
+    channel.presence.get().then(function (members) {
+      var others = members.filter(function (m) { return m.clientId !== myClientId; });
+      memberCount = others.length;
+      if (memberCount === 0) {
+        setStatus('ready', '等待玩家加入');
         updatePlayerList();
-        if (playerCount === 0) setStatus('ready', '等待玩家加入');
-        else setStatus('online', playerCount + ' 位玩家連線中');
-      });
-    });
-
-    peer.on('error', function(err) {
-      console.error('[peer] error:', err.type);
-      if (err.type === 'unavailable-id' && peerRetries < 3) {
-        peerRetries++;
-        roomId = 'pic-' + Math.random().toString(36).substring(2, 8).toLowerCase();
-        elements.roomDisplay.textContent = roomId;
-        generateQR();
-        setTimeout(setupPeer, 1000);
-      } else if (err.type !== 'disconnected') {
-        setStatus('offline', '連線異常');
+      } else {
+        setStatus('online', memberCount + ' 位玩家連線中');
+        updatePlayerList();
       }
+    }).catch(function (err) {
+      console.error('[presence] get error:', err);
     });
   }
 
@@ -128,20 +145,20 @@
 
   function updatePlayerList() {
     elements.playerList.innerHTML = '';
-    if (playerCount === 0) {
+    if (memberCount === 0) {
       elements.playerList.innerHTML = '<li class="empty">等待玩家加入…</li>';
       return;
     }
-    for (var i = 0; i < playerCount; i++) {
+    for (var i = 0; i < memberCount; i++) {
       var li = document.createElement('li');
       li.textContent = '玩家 ' + (i + 1);
       elements.playerList.appendChild(li);
     }
   }
 
-  function handleDrawing(conn, msg) {
+  function handleDrawing(message) {
     var id = ++drawingId;
-    var card = createCard(id, msg.data);
+    var card = createCard(id, message.data);
     removeEmptyState();
     elements.galleryGrid.insertBefore(card, elements.galleryGrid.firstChild);
     updateCount();
@@ -152,9 +169,9 @@
       return;
     }
 
-    callGemini(apiKey, msg.data).then(function(result) {
+    callGemini(apiKey, message.data).then(function (result) {
       setAiResult(card, result.guess, result.comment, result.score);
-    }).catch(function(err) {
+    }).catch(function (err) {
       console.error('[gemini] error:', err);
       setAiResult(card, '❌ ' + (err.message || 'AI 回應異常'), '');
     });
@@ -229,7 +246,7 @@
       try {
         var parsed = JSON.parse(errText);
         if (parsed.error && parsed.error.message) msg = parsed.error.message;
-      } catch (_) {}
+      } catch (_) { }
       throw new Error(msg);
     }
 
@@ -254,7 +271,7 @@
     var guessMatch = text.match(/[答案][：:]?\s*(.+?)(?:\n|$)/);
     if (guessMatch) guess = guessMatch[1].trim();
 
-    var lines = text.split('\n').filter(function(l) { return l.trim(); });
+    var lines = text.split('\n').filter(function (l) { return l.trim(); });
     var commentLines = [];
     for (var i = 0; i < lines.length; i++) {
       var line = lines[i].trim();
@@ -268,7 +285,7 @@
   }
 
   function setupEvents() {
-    elements.saveKeyBtn.addEventListener('click', function() {
+    elements.saveKeyBtn.addEventListener('click', function () {
       var key = elements.apiKeyInput.value.trim();
       if (!key) {
         elements.apiStatus.textContent = '⚠️ 請輸入 API Key';
@@ -280,7 +297,7 @@
       elements.apiStatus.className = 'api-status ok';
     });
 
-    elements.apiKeyInput.addEventListener('keydown', function(e) {
+    elements.apiKeyInput.addEventListener('keydown', function (e) {
       if (e.key === 'Enter') elements.saveKeyBtn.click();
     });
   }

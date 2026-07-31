@@ -1,4 +1,4 @@
-(function() {
+(function () {
   'use strict';
 
   var CANVAS_SIZE = 500;
@@ -19,11 +19,11 @@
     statusMsg: document.querySelector('#statusMsg')
   };
 
-  var peer = null;
-  var conn = null;
-  var retryTimer = null;
-  var connTimeout = null;
-  var attemptCount = 0;
+  var ABLY_KEY = 'XGHDcg.6rIvFg:As3RE8ShoT67QAg1O2GoyRSN50RosUlk5Yfwo4eJkBc';
+  var channelName = function (room) { return 'pictionary-' + room; };
+
+  var ably = null;
+  var channel = null;
   var isConnected = false;
   var roomId = '';
 
@@ -133,131 +133,70 @@
     updateSubmitBtn();
   }
 
-  function connectPeer(room) {
+  function connectAbly(room) {
     roomId = room;
     elements.roomLabel.textContent = '#' + room;
 
-    if (peer) { peer.destroy(); peer = null; }
-    if (conn) { conn.close(); conn = null; }
-    if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
-    if (connTimeout) { clearTimeout(connTimeout); connTimeout = null; }
-    attemptCount = 0;
+    if (!ABLY_KEY || ABLY_KEY.indexOf('PASTE_') === 0) {
+      setMsg('⚠️ 連線服務未設定，請聯絡主辦單位', 'err');
+      setConnected(false);
+      console.error('[ably] API key not configured');
+      return;
+    }
 
     try {
-      peer = new Peer();
+      ably = new Ably.Realtime({
+        key: ABLY_KEY,
+        transportParams: { maxMessageSize: 500000 }
+      });
     } catch (err) {
       setMsg('連線模組載入失敗，請重新整理', 'err');
-      console.error('[peer] init error:', err);
+      console.error('[ably] init error:', err);
       return;
     }
 
-    peer.on('open', function() {
-      tryConnect();
-    });
-
-    peer.on('error', function(err) {
-      console.error('[peer] error:', err.type);
-      setConnected(false);
-      if (err.type === 'server-error' || err.type === 'network') {
-        scheduleRetry('連線服務暫時無法存取，重試中…');
-      }
-    });
-
-    peer.on('disconnected', function() {
-      setConnected(false);
-      setMsg('連線已中斷，嘗試重新連線…', 'err');
-      if (peer && !peer.destroyed) {
-        try { peer.reconnect(); } catch (_) {}
-      }
-    });
-  }
-
-  function tryConnect() {
-    if (isConnected) return;
-    if (!peer) return;
-
-    if (conn) { conn.close(); conn = null; }
-    if (connTimeout) { clearTimeout(connTimeout); connTimeout = null; }
-
-    if (attemptCount > 0) {
-      setMsg('大螢幕尚未就緒，第 ' + attemptCount + ' 次重試中…', 'err');
-    }
-    if (attemptCount >= 5) {
-      setMsg('連線失敗，請確認大螢幕已開啟後重新整理', 'err');
-      return;
-    }
-    attemptCount++;
-
-    try {
-      conn = peer.connect(roomId, { reliable: true });
-    } catch (err) {
-      console.error('[connect] error:', err);
-      scheduleRetry('連線建立失敗，重試中…');
-      return;
-    }
-
-    connTimeout = setTimeout(function() {
-      if (!isConnected) {
-        console.log('[conn] timeout, retry');
-        if (conn) { conn.close(); conn = null; }
-        tryConnect();
-      }
-    }, 8000);
-
-    conn.on('open', function() {
-      if (connTimeout) { clearTimeout(connTimeout); connTimeout = null; }
-      attemptCount = 0;
+    ably.connection.on('connected', function () {
       setConnected(true);
       setMsg('已連線，開始畫畫吧！');
+
+      channel = ably.channels.get(channelName(room));
+      channel.subscribe('ack', function (message) {
+        setMsg('🎉 已送出！等待 AI 猜測中', 'ok');
+      });
+
+      channel.presence.enter('player');
     });
 
-    conn.on('data', function(data) {
-      try {
-        var msg = typeof data === 'string' ? JSON.parse(data) : data;
-        if (msg.type === 'ack') {
-          setMsg('🎉 已送出！等待 AI 猜測中', 'ok');
-        }
-      } catch (_) {}
-    });
-
-    conn.on('close', function() {
-      if (connTimeout) { clearTimeout(connTimeout); connTimeout = null; }
+    ably.connection.on('failed', function (err) {
       setConnected(false);
-      setMsg('連線已中斷', 'err');
-      scheduleRetry('嘗試重新連線中…');
-    });
-
-    conn.on('error', function(err) {
-      console.error('[conn] error:', err);
-      if (connTimeout) { clearTimeout(connTimeout); connTimeout = null; }
-      setConnected(false);
-      if (attemptCount < 5) {
-        if (conn) { conn.close(); conn = null; }
-        retryTimer = setTimeout(tryConnect, 3000);
-      } else {
-        setMsg('連線失敗，請確認大螢幕已開啟', 'err');
-      }
-    });
-  }
-
-  function scheduleRetry(msg) {
-    if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
-    if (attemptCount >= 5) {
       setMsg('連線失敗，請確認大螢幕已開啟後重新整理', 'err');
-      return;
-    }
-    setMsg(msg, 'err');
-    retryTimer = setTimeout(tryConnect, 3000);
+      console.error('[ably] connection failed:', err);
+    });
+
+    ably.connection.on('suspended', function () {
+      setConnected(false);
+      setMsg('連線不穩，嘗試重新連線中…', 'err');
+    });
+
+    ably.connection.on('disconnected', function () {
+      setConnected(false);
+    });
   }
 
   function submitDrawing() {
     if (!isConnected || !hasDrawing) return;
+    if (!channel) return;
     elements.submitBtn.disabled = true;
     elements.submitBtn.innerHTML = '⏳ 傳送中…';
 
     try {
       var image = canvas.toDataURL('image/png');
-      conn.send(JSON.stringify({ type: 'drawing', data: image }));
+      channel.publish('drawing', image, function (err) {
+        if (err) {
+          setMsg('❌ 傳送失敗，請重試', 'err');
+          console.error('[submit] publish error:', err);
+        }
+      });
       setMsg('🎉 已送出！等待 AI 猜測中', 'ok');
     } catch (err) {
       setMsg('❌ 傳送失敗，請重試', 'err');
@@ -276,7 +215,7 @@
       elements.roomLabel.textContent = '無房間';
       return;
     }
-    connectPeer(room);
+    connectAbly(room);
 
     canvas.width = CANVAS_SIZE;
     canvas.height = CANVAS_SIZE;
@@ -289,10 +228,10 @@
     canvas.addEventListener('pointerup', endDraw);
     canvas.addEventListener('pointercancel', endDraw);
 
-    elements.palette.addEventListener('click', function(e) {
+    elements.palette.addEventListener('click', function (e) {
       var swatch = e.target.closest('.swatch');
       if (!swatch) return;
-      elements.palette.querySelectorAll('.swatch').forEach(function(s) { s.classList.remove('active'); });
+      elements.palette.querySelectorAll('.swatch').forEach(function (s) { s.classList.remove('active'); });
       swatch.classList.add('active');
       color = swatch.dataset.color;
       tool = 'brush';
@@ -300,13 +239,13 @@
       elements.eraserBtn.classList.remove('active');
     });
 
-    elements.brushBtn.addEventListener('click', function() {
+    elements.brushBtn.addEventListener('click', function () {
       tool = 'brush';
       elements.brushBtn.classList.add('active');
       elements.eraserBtn.classList.remove('active');
     });
 
-    elements.eraserBtn.addEventListener('click', function() {
+    elements.eraserBtn.addEventListener('click', function () {
       tool = 'eraser';
       elements.eraserBtn.classList.add('active');
       elements.brushBtn.classList.remove('active');
@@ -316,7 +255,7 @@
     elements.clearBtn.addEventListener('click', clearCanvas);
     elements.submitBtn.addEventListener('click', submitDrawing);
 
-    elements.sizeSlider.addEventListener('input', function() {
+    elements.sizeSlider.addEventListener('input', function () {
       brushSize = parseInt(elements.sizeSlider.value, 10);
       elements.sizeDisplay.textContent = brushSize;
     });
