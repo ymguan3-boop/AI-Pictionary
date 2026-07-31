@@ -147,6 +147,7 @@
     try {
       ably = new Ably.Realtime({
         key: ABLY_KEY,
+        clientId: 'player-' + Math.random().toString(36).substring(2, 8),
         transportParams: { maxMessageSize: 500000 }
       });
     } catch (err) {

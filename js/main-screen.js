@@ -115,16 +115,21 @@
       updatePresence();
     });
 
-    channel.presence.get().then(function (members) {
-      memberCount = members.filter(function (m) { return m.clientId !== myClientId; }).length;
+    channel.presence.get(function (err, members) {
+      if (err) return;
+      memberCount = (members || []).filter(function (m) { return m.clientId !== myClientId; }).length;
       updatePresence();
-    }).catch(function () { });
+    });
   }
 
   function updatePresence() {
-    if (!channel) return;
-    channel.presence.get().then(function (members) {
-      var others = members.filter(function (m) { return m.clientId !== myClientId; });
+    if (!channel || !channel.presence) return;
+    channel.presence.get(function(err, members) {
+      if (err) {
+        console.error('[presence] get error:', err);
+        return;
+      }
+      var others = (members || []).filter(function(m) { return m.clientId !== myClientId; });
       memberCount = others.length;
       if (memberCount === 0) {
         setStatus('ready', '等待玩家加入');
@@ -133,6 +138,8 @@
         setStatus('online', memberCount + ' 位玩家連線中');
         updatePlayerList();
       }
+    });
+  }
     }).catch(function (err) {
       console.error('[presence] get error:', err);
     });
