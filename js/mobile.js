@@ -21,6 +21,12 @@
 
   var peer = null;
   var conn = null;
+  var retryTimer = null;
+  var connTimeout = null;
+  var attemptCount = 0;
+  var isConnected = false;
+  var roomId = '';
+
   var isDrawing = false;
   var lastPoint = null;
   var tool = 'brush';
@@ -112,7 +118,7 @@
   }
 
   function updateSubmitBtn() {
-    elements.submitBtn.disabled = !(conn && conn.open && hasDrawing);
+    elements.submitBtn.disabled = !(isConnected && hasDrawing);
   }
 
   function setMsg(text, type) {
@@ -121,13 +127,131 @@
   }
 
   function setConnected(online) {
-    elements.connBadge.textContent = online ? '已連線' : '離線';
+    isConnected = online;
+    elements.connBadge.textContent = online ? '已連線' : '連線中';
     elements.connBadge.className = 'conn-badge ' + (online ? 'online' : 'offline');
     updateSubmitBtn();
   }
 
+  function connectPeer(room) {
+    roomId = room;
+    elements.roomLabel.textContent = '#' + room;
+
+    if (peer) { peer.destroy(); peer = null; }
+    if (conn) { conn.close(); conn = null; }
+    if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
+    if (connTimeout) { clearTimeout(connTimeout); connTimeout = null; }
+    attemptCount = 0;
+
+    try {
+      peer = new Peer();
+    } catch (err) {
+      setMsg('連線模組載入失敗，請重新整理', 'err');
+      console.error('[peer] init error:', err);
+      return;
+    }
+
+    peer.on('open', function() {
+      tryConnect();
+    });
+
+    peer.on('error', function(err) {
+      console.error('[peer] error:', err.type);
+      setConnected(false);
+      if (err.type === 'server-error' || err.type === 'network') {
+        scheduleRetry('連線服務暫時無法存取，重試中…');
+      }
+    });
+
+    peer.on('disconnected', function() {
+      setConnected(false);
+      setMsg('連線已中斷，嘗試重新連線…', 'err');
+      if (peer && !peer.destroyed) {
+        try { peer.reconnect(); } catch (_) {}
+      }
+    });
+  }
+
+  function tryConnect() {
+    if (isConnected) return;
+    if (!peer) return;
+
+    if (conn) { conn.close(); conn = null; }
+    if (connTimeout) { clearTimeout(connTimeout); connTimeout = null; }
+
+    if (attemptCount > 0) {
+      setMsg('大螢幕尚未就緒，第 ' + attemptCount + ' 次重試中…', 'err');
+    }
+    if (attemptCount >= 5) {
+      setMsg('連線失敗，請確認大螢幕已開啟後重新整理', 'err');
+      return;
+    }
+    attemptCount++;
+
+    try {
+      conn = peer.connect(roomId, { reliable: true });
+    } catch (err) {
+      console.error('[connect] error:', err);
+      scheduleRetry('連線建立失敗，重試中…');
+      return;
+    }
+
+    connTimeout = setTimeout(function() {
+      if (!isConnected) {
+        console.log('[conn] timeout, retry');
+        if (conn) { conn.close(); conn = null; }
+        tryConnect();
+      }
+    }, 8000);
+
+    conn.on('open', function() {
+      if (connTimeout) { clearTimeout(connTimeout); connTimeout = null; }
+      attemptCount = 0;
+      setConnected(true);
+      setMsg('已連線，開始畫畫吧！');
+    });
+
+    conn.on('data', function(data) {
+      try {
+        var msg = typeof data === 'string' ? JSON.parse(data) : data;
+        if (msg.type === 'ack') {
+          setMsg('🎉 已送出！等待 AI 猜測中', 'ok');
+        }
+      } catch (_) {}
+    });
+
+    conn.on('close', function() {
+      if (connTimeout) { clearTimeout(connTimeout); connTimeout = null; }
+      setConnected(false);
+      setMsg('連線已中斷', 'err');
+      scheduleRetry('嘗試重新連線中…');
+    });
+
+    conn.on('error', function(err) {
+      console.error('[conn] error:', err);
+      if (connTimeout) { clearTimeout(connTimeout); connTimeout = null; }
+      setConnected(false);
+      if (attemptCount < 5) {
+        if (conn) { conn.close(); conn = null; }
+        retryTimer = setTimeout(tryConnect, 3000);
+      } else {
+        setMsg('連線失敗，請確認大螢幕已開啟', 'err');
+      }
+    });
+  }
+
+  function scheduleRetry(msg) {
+    if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
+    if (attemptCount >= 5) {
+      setMsg('連線失敗，請確認大螢幕已開啟後重新整理', 'err');
+      return;
+    }
+    setMsg(msg, 'err');
+    retryTimer = setTimeout(tryConnect, 3000);
+  }
+
   function submitDrawing() {
-    if (!conn || !conn.open || !hasDrawing) return;
+    if (!isConnected || !hasDrawing) return;
     elements.submitBtn.disabled = true;
     elements.submitBtn.innerHTML = '⏳ 傳送中…';
 
@@ -142,26 +266,6 @@
 
     elements.submitBtn.innerHTML = '🚀 送出畫作給 AI 猜';
     updateSubmitBtn();
-  }
-
-  function connectPeer(roomId) {
-    elements.roomLabel.textContent = '#' + roomId;
-    peer = new Peer();
-    peer.on('open', function() {
-      conn = peer.connect('pic-' + roomId, { reliable: true });
-      conn.on('open', function() {
-        setConnected(true);
-        setMsg('已連線，開始畫畫吧！');
-      });
-      conn.on('close', function() {
-        setConnected(false);
-        setMsg('連線已中斷', 'err');
-      });
-    });
-    peer.on('error', function() {
-      setConnected(false);
-      setMsg('無法連線，請確認大螢幕已開啟', 'err');
-    });
   }
 
   function init() {

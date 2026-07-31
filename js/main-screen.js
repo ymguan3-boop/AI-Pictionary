@@ -37,7 +37,13 @@
 
     roomId = 'pic-' + Math.random().toString(36).substring(2, 8).toLowerCase();
     elements.roomDisplay.textContent = roomId;
+    generateQR();
 
+    setupPeer();
+    setupEvents();
+  }
+
+  function generateQR() {
     const basePath = location.pathname.replace(/\/?[^/]*$/, '/');
     const mobileUrl = location.origin + basePath + 'mobile.html?room=' + roomId;
     elements.qrContainer.innerHTML = '';
@@ -54,9 +60,6 @@
       elements.qrContainer.textContent = mobileUrl;
       console.error('[qrcode] generation failed:', err);
     }
-
-    setupPeer();
-    setupEvents();
   }
 
   function setupPeer() {
@@ -66,7 +69,7 @@
     }
 
     try {
-      peer = new Peer('pic-' + roomId);
+      peer = new Peer(roomId);
     } catch (err) {
       setStatus('offline', '連線模組載入失敗');
       console.error('[peer] init error:', err);
@@ -87,7 +90,10 @@
       conn.on('data', function(data) {
         try {
           const msg = typeof data === 'string' ? JSON.parse(data) : data;
-          if (msg.type === 'drawing') handleDrawing(conn, msg);
+          if (msg.type === 'drawing') {
+            handleDrawing(conn, msg);
+            try { conn.send(JSON.stringify({ type: 'ack' })); } catch (_) {}
+          }
         } catch (err) {
           console.error('[data] parse error:', err);
         }
@@ -107,6 +113,7 @@
         peerRetries++;
         roomId = 'pic-' + Math.random().toString(36).substring(2, 8).toLowerCase();
         elements.roomDisplay.textContent = roomId;
+        generateQR();
         setTimeout(setupPeer, 1000);
       } else if (err.type !== 'disconnected') {
         setStatus('offline', '連線異常');
