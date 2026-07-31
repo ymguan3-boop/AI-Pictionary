@@ -8,7 +8,7 @@
     status: document.querySelector('#connectionStatus'),
     statusLabel: document.querySelector('#connectionStatus .label'),
     roomDisplay: document.querySelector('#roomDisplay'),
-    qrCode: document.querySelector('#qrCode'),
+    qrContainer: document.querySelector('#qrCodeContainer'),
     playerList: document.querySelector('#playerList'),
     galleryGrid: document.querySelector('#galleryGrid'),
     drawingCount: document.querySelector('#drawingCount'),
@@ -40,8 +40,20 @@
 
     const basePath = location.pathname.replace(/\/?[^/]*$/, '/');
     const mobileUrl = location.origin + basePath + 'mobile.html?room=' + roomId;
-    elements.qrCode.src = 'https://chart.googleapis.com/chart?chs=300x300&cht=qr&chl=' + encodeURIComponent(mobileUrl) + '&choe=UTF-8';
-    elements.qrCode.onerror = function() { this.alt = mobileUrl; };
+    elements.qrContainer.innerHTML = '';
+    try {
+      new QRCode(elements.qrContainer, {
+        text: mobileUrl,
+        width: 160,
+        height: 160,
+        colorDark: '#0a0e1a',
+        colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M
+      });
+    } catch (err) {
+      elements.qrContainer.textContent = mobileUrl;
+      console.error('[qrcode] generation failed:', err);
+    }
 
     setupPeer();
     setupEvents();

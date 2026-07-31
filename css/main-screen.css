@@ -45,7 +45,7 @@ html, body { height: 100%; font-family: Inter, 'Noto Sans TC', system-ui, sans-s
   background: white; border-radius: var(--radius);
   box-shadow: 0 8px 32px rgba(0,240,255,.1);
 }
-.qr-image { display: block; width: 160px; height: 160px; border-radius: 8px; }
+.qr-frame canvas { display: block; width: 160px; height: 160px; border-radius: 8px; }
 .room-info { margin-top: 12px; }
 .room-info label { display: block; font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .1em; }
 .room-info code { font-size: 22px; font-weight: 900; color: var(--accent); letter-spacing: .06em; }
