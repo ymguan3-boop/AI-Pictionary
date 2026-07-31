@@ -140,10 +140,6 @@
       }
     });
   }
-    }).catch(function (err) {
-      console.error('[presence] get error:', err);
-    });
-  }
 
   function setStatus(mode, text) {
     elements.status.className = 'status-badge ' + mode;
