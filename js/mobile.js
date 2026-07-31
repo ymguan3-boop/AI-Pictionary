@@ -182,6 +182,18 @@
     ably.connection.on('disconnected', function () {
       setConnected(false);
     });
+
+    window.addEventListener('pagehide', function () {
+      try {
+        if (channel && channel.presence) channel.presence.leave();
+        if (ably) ably.close();
+      } catch (_) {}
+    });
+    window.addEventListener('beforeunload', function () {
+      try {
+        if (channel && channel.presence) channel.presence.leave();
+      } catch (_) {}
+    });
   }
 
   function submitDrawing() {

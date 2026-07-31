@@ -8,7 +8,6 @@
   const elements = {
     status: document.querySelector('#connectionStatus'),
     statusLabel: document.querySelector('#connectionStatus .label'),
-    roomDisplay: document.querySelector('#roomDisplay'),
     qrContainer: document.querySelector('#qrCodeContainer'),
     playerList: document.querySelector('#playerList'),
     galleryGrid: document.querySelector('#galleryGrid'),
@@ -46,7 +45,6 @@
     }
 
     roomId = 'pic-' + Math.random().toString(36).substring(2, 8).toLowerCase();
-    elements.roomDisplay.textContent = roomId;
     generateQR();
 
     setupAbly();
