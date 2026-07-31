@@ -1,7 +1,8 @@
 (function () {
   'use strict';
 
-  const GEMINI_API = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+  const GEMINI_MODEL = 'gemini-2.5-flash';
+  const GEMINI_API = 'https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_MODEL + ':generateContent';
   const GEMINI_SYSTEM_PROMPT = '你是一位幽默熱情的 Pictionary 遊戲主持人。請觀察這張玩家的畫作，猜測他畫的是什麼，並給予 100 字以內的幽默點評與相似度評分 (1-100分)。請用以下格式回應：\n\n答案：[你猜的答案]\n評分：[分數]\n\n[你的幽默點評]';
 
   const elements = {
@@ -14,7 +15,8 @@
     drawingCount: document.querySelector('#drawingCount'),
     apiKeyInput: document.querySelector('#apiKeyInput'),
     saveKeyBtn: document.querySelector('#saveKeyBtn'),
-    apiStatus: document.querySelector('#apiStatus')
+    apiStatus: document.querySelector('#apiStatus'),
+    modelName: document.querySelector('#modelName')
   };
 
   const ABLY_KEY = 'XGHDcg.6rIvFg:As3RE8ShoT67QAg1O2GoyRSN50RosUlk5Yfwo4eJkBc';
@@ -37,6 +39,10 @@
       elements.apiKeyInput.value = savedKey;
       elements.apiStatus.textContent = '✅ API Key 已載入';
       elements.apiStatus.className = 'api-status ok';
+    }
+
+    if (elements.modelName) {
+      elements.modelName.textContent = '模型：' + GEMINI_MODEL;
     }
 
     roomId = 'pic-' + Math.random().toString(36).substring(2, 8).toLowerCase();
@@ -165,6 +171,24 @@
     removeEmptyState();
     elements.galleryGrid.insertBefore(card, elements.galleryGrid.firstChild);
     updateCount();
+
+    setTimeout(function () {
+      if (card.parentNode) {
+        card.style.opacity = '0';
+        card.style.transform = 'scale(0.8)';
+        card.style.transition = 'all 0.5s ease';
+        setTimeout(function () { if (card.parentNode) card.remove(); updateCount(); }, 500);
+      }
+    }, 30000);
+
+    var allCards = elements.galleryGrid.querySelectorAll('.drawing-card');
+    if (allCards.length > 6) {
+      var oldest = allCards[allCards.length - 1];
+      oldest.style.opacity = '0';
+      oldest.style.transform = 'scale(0.8)';
+      oldest.style.transition = 'all 0.5s ease';
+      setTimeout(function () { if (oldest.parentNode) oldest.remove(); updateCount(); }, 500);
+    }
 
     var apiKey = getApiKey();
     if (!apiKey) {

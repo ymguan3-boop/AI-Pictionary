@@ -3,21 +3,21 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>AI ????Pictionary</title>
+  <title>AI 猜猜看 - Pictionary</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&family=Noto+Sans+TC:wght@400;700;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/main-screen.css?v=4">
+  <link rel="stylesheet" href="css/main-screen.css?v=5">
 </head>
 <body>
   <div class="app">
     <aside class="sidebar">
       <div class="sidebar-header">
-        <h1><span class="icon">?</span> AI ????/h1>
-        <p class="subtitle">Pictionary 繚 Gemini Edition</p>
+        <h1><span class="icon">&#127912;</span> AI 猜猜看</h1>
+        <p class="subtitle">Pictionary 畫 Gemini Edition</p>
       </div>
 
       <div id="connectionStatus" class="status-badge offline">
-        <span class="dot"></span><span class="label"> ???葉</span>
+        <span class="dot"></span><span class="label"> 初始化中...</span>
       </div>
 
       <div class="qr-section">
@@ -25,47 +25,48 @@
           <div id="qrCodeContainer"></div>
         </div>
         <div class="room-info">
-          <label>?輸?隞??</label>
+          <label>房間代號</label>
           <code id="roomDisplay">---</code>
         </div>
-        <p class="hint">????QR Code ?蝜芰</p>
+        <p class="hint">用手機掃描 QR Code 進入</p>
       </div>
 
       <div class="players-section">
-        <h3>撌脤???拙振</h3>
+        <h3>玩家列表</h3>
         <ul id="playerList" class="player-list">
-          <li class="empty">蝑??拙振???/li>
+          <li class="empty">等待玩家加入...</li>
         </ul>
       </div>
 
       <div class="api-section">
-        <h3>Gemini API 閮剖?</h3>
+        <h3>Gemini API 設定</h3>
         <div class="input-group">
-          <input id="apiKeyInput" type="password" placeholder="頛詨雿? Gemini API Key">
-          <button id="saveKeyBtn" class="btn-small">?脣?</button>
+          <input id="apiKeyInput" type="password" placeholder="貼上你的 Gemini API Key">
+          <button id="saveKeyBtn" class="btn-small">儲存</button>
         </div>
         <p id="apiStatus" class="api-status"></p>
-        <a class="help-link" href="https://aistudio.google.com/apikey" target="_blank">???祥 API Key ??/a>
+        <a class="help-link" href="https://aistudio.google.com/apikey" target="_blank">取得 API Key 說明</a>
+        <p id="modelName" class="model-name"></p>
       </div>
     </aside>
 
     <main class="gallery">
       <div class="gallery-header">
-        <h2>?拙振?思?撱?/h2>
-        <span id="drawingCount" class="count">0 撟?/span>
+        <h2>玩家畫廊</h2>
+        <span id="drawingCount" class="count">0 幅</span>
       </div>
       <div id="galleryGrid" class="gallery-grid">
         <div class="empty-state">
-          <div class="empty-icon">??儭?/div>
-          <p>蝑??拙振??思???/p>
-          <p class="sub">??撌血 QR Code ??</p>
+          <div class="empty-icon">&#127912;</div>
+          <p>等待玩家畫作</p>
+          <p class="sub">手機掃描 QR Code 進入</p>
         </div>
       </div>
     </main>
   </div>
 
-  <script src="vendor/ably.min.js?v=4"></script>
-  <script src="vendor/qrcode.min.js?v=4"></script>
-  <script src="js/main-screen.js?v=4"></script>
+  <script src="vendor/ably.min.js?v=5"></script>
+  <script src="vendor/qrcode.min.js?v=5"></script>
+  <script src="js/main-screen.js?v=5"></script>
 </body>
 </html>
