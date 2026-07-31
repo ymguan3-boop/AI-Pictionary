@@ -45,6 +45,7 @@
     }
 
     roomId = 'pic-' + Math.random().toString(36).substring(2, 8).toLowerCase();
+    window.__roomId = roomId;
     generateQR();
 
     setupAbly();
