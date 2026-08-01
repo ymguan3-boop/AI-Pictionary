@@ -1,5 +1,7 @@
 # AI 猜猜看 (Pictionary) 互動繪畫遊戲
 
+> **▶ 立即遊玩**：https://ymguan3-boop.github.io/QRcode-Games/AI-Pictionary/
+
 大螢幕展示 + 手機畫板，透過 Ably 中繼伺服器即時連線，Google Gemini AI 自動猜測畫作內容。
 
 > **通訊層**：使用 Ably Realtime（WebSocket 443 埠），可穿透公司網路與電信 5G 防火牆，無需 P2P 穿透。
@@ -8,7 +10,7 @@
 
 - **大螢幕 (index.html)**：顯示 QR Code 供手機連線，接收畫作後調用 Gemini AI 猜題
 - **手機畫板 (mobile.html)**：Canvas 繪圖，支援顏色、筆刷粗細、橡皮擦、復原、清除
-- **AI 主持人**：Gemini 1.5 Flash 多模態視覺模型，幽默點評並打分
+- **AI 主持人**：Gemini 3.5 Flash 多模態視覺模型（免費最新），幽默點評並打分
 
 ## 部署至 GitHub Pages
 
