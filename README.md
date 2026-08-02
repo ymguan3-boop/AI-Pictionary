@@ -1,4 +1,4 @@
-# AI 猜猜看 (Pictionary) 互動繪畫遊戲
+﻿# AI 猜猜看 (Pictionary) 互動繪畫遊戲
 
 > **▶ 立即遊玩**：https://ymguan3-boop.github.io/QRcode-Games/AI-Pictionary/
 
@@ -10,7 +10,7 @@
 
 - **大螢幕 (index.html)**：顯示 QR Code 供手機連線，接收畫作後調用 Gemini AI 猜題
 - **手機畫板 (mobile.html)**：Canvas 繪圖，支援顏色、筆刷粗細、橡皮擦、復原、清除
-- **AI 主持人**：Gemini 2.5 Flash-Lite 多模態視覺模型（免費快速），幽默點評並打分
+- **AI 主持人**：Gemini 3.1 Flash-Lite 多模態視覺模型（免費快速），幽默點評並打分
 
 ## 部署至 GitHub Pages
 
